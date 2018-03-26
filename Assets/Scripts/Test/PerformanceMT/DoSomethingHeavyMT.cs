@@ -23,13 +23,8 @@ namespace PerformanceMT
 
                 long result = (long)enumerator.Current * 333;
 
-                yield return SetColor(result).ThreadSafeRun(); //yep the thread will wait for this other task to finish on the mainThreadScheduler
+                yield return SetColor(result).ThreadSafeRunOnSchedule(StandardSchedulers.coroutineScheduler); //yep the thread will wait for this other task to finish on the mainThreadScheduler
             }
-        }
-
-        void OnDestroy()
-        {
-            TaskRunner.Instance.StopAndCleanupAllDefaultSchedulerTasks();
         }
 
         IEnumerator SetColor(long result)
@@ -39,14 +34,9 @@ namespace PerformanceMT
             yield return null;
         }
 
-        void OnApplicationQuit()
-        {
-            StandardSchedulers.StopSchedulers(); //Unity will get stuck for ever if you don't do this
-        }
-
         void OnDisable()
         {
-            StandardSchedulers.StopSchedulers(); //Unity will get stuck for ever if you don't do this
+            TaskRunner.StopAndCleanupAllDefaultSchedulers();
         }
 
         void Update()

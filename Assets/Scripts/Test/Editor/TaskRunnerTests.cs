@@ -3,6 +3,7 @@
 using System;
 using System.Collections;
 using System.Threading;
+using JetBrains.Annotations;
 using NUnit.Framework;
 using Svelto.Tasks;
 using Svelto.Tasks.Enumerators;
@@ -142,15 +143,27 @@ namespace Test
             bool allDone = false;
 
             //this must never happen
-            _serialTasks1.onComplete += () => { allDone = true; Assert.That(false); };
-            //it won't happen because we are telling the serial task to break on exception
-            _serialTasks1.onException += (e) => true;
-
+            _serialTasks1.onComplete += () =>
+                                        {
+                                            allDone = true; Assert.That(false);
+                                        };
+            
             _serialTasks1.Add (_iterable1.GetEnumerator());
             _serialTasks1.Add (_iterableWithException.GetEnumerator()); //will throw an exception
 
-            _reusableTaskRoutine.SetEnumerator(_serialTasks1).Start
-                (e => Assert.That(allDone, Is.False)); //will catch the exception
+            bool hasBeenCalled = false;
+            try
+            {
+                _reusableTaskRoutine.SetEnumerator(_serialTasks1).SetScheduler(new SyncRunner()).Start
+                    (e => { Assert.That(allDone, Is.False);
+                         hasBeenCalled = true;
+                     }
+                    ); //will catch the exception
+            }
+            catch
+            {
+                Assert.That(hasBeenCalled == true);
+            }
         }
 
         [Test]
@@ -239,6 +252,77 @@ namespace Test
         public void TestParallelTasks1IsExecutedBeforeParallelTask2 ()
         {
             TaskRunner.Instance.RunOnSchedule(new SyncRunner(), SerialContinuation());
+        }
+
+        [Test]
+        public void ParallelMultiThread()
+        {
+            var parallelMultiThread = new MultiThreadedParallelTaskCollection();
+
+            parallelMultiThread.Add(new SlowTask());
+            parallelMultiThread.Add(new SlowTask());
+            
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+
+            parallelMultiThread.Complete();
+
+            sw.Stop();
+
+            Assert.That(sw.ElapsedMilliseconds, Is.AtLeast(1000));
+            Assert.That(sw.ElapsedMilliseconds, Is.AtMost(1100));
+
+        }
+        
+        [UnityTest]
+        public IEnumerator ParalelMultiThreadOnAnotherRunner()
+        {
+            using (var runner = new MultiThreadRunner("MT"))
+            {
+                ITaskRoutine routine = TaskRunner.Instance.AllocateNewTaskRoutine();
+
+                routine.SetEnumerator(ParallelMultiThreadWithYielding()).SetScheduler(runner);
+
+                var continuator = routine.Start();
+
+                while (continuator.MoveNext() == true) yield return null;
+            }
+        }
+        
+        [UnityTest]
+        public IEnumerator ParallelMultiThreadWithYielding()
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+
+            var parallelMultiThread = new MultiThreadedParallelTaskCollection();
+
+            parallelMultiThread.Add(new SlowTask());
+            parallelMultiThread.Add(new SlowTask());
+
+            while (parallelMultiThread.MoveNext() == true) yield return null;
+
+            sw.Stop();
+
+            Assert.That(sw.ElapsedMilliseconds, Is.AtLeast(1000));
+            Assert.That(sw.ElapsedMilliseconds, Is.AtMost(1100));
+        }
+
+        public class SlowTask : IEnumerator
+        {
+            public object Current { get; private set; }
+
+            public SlowTask()
+            {}
+
+            public bool MoveNext()
+            {
+                System.Threading.Thread.Sleep(1000);
+                
+                return false;
+            }
+
+            public void Reset()
+            {
+            }
         }
 
         [Test]
@@ -372,6 +456,65 @@ namespace Test
             }
         }
         
+        [Test]
+        public void TestMultiThreadParallelTaskComplete()
+        {
+            var test = new MultiThreadedParallelTaskCollection(4);
+
+            bool done = false;
+            test.onComplete += () => done = true;
+            Token token = new Token();
+        
+            test.Add(new WaitEnumerator(token));
+            test.Add(new WaitEnumerator(token));
+            test.Add(new WaitEnumerator(token));
+            test.Add(new WaitEnumerator(token));
+
+            test.Complete();
+        
+            Assert.That(done, Is.True);
+            Assert.AreEqual(4, token.count);
+        }
+        
+        
+        class Token
+        {
+            public int count;
+        }
+        
+        class WaitEnumerator:IEnumerator
+        {
+            Token _token;
+
+            public WaitEnumerator(Token token)
+            {
+                _token   = token;
+                _future = DateTime.UtcNow.AddSeconds(2);
+            }
+        
+            public void Reset()
+            {
+                _future      = DateTime.UtcNow.AddSeconds(2);
+                _token.count = 0;
+            }
+
+            public object Current { get { return null; } }
+
+            DateTime _future;
+
+            public bool MoveNext()
+            {
+                if (_future <= DateTime.UtcNow)
+                {
+                    Interlocked.Increment(ref _token.count);
+        
+                    return false;
+                }
+
+                return true;
+            }
+        }
+        
         [UnityTest]
         public IEnumerator TestSimpleTaskRoutineStartStart()
         {
@@ -432,7 +575,7 @@ namespace Test
                 while (continuator.MoveNext()) yield return null;
             }
 
-            Assert.That(result.counter == 1);
+            Assert.That(result.counter, Is.EqualTo(1));
         }
         
         [UnityTest]
@@ -461,7 +604,7 @@ namespace Test
             yield return SimpleEnumeratorFast(result).ThreadSafeRunOnSchedule(runner);
             yield return SimpleEnumeratorFast(result).ThreadSafeRunOnSchedule(runner);
             yield return SimpleEnumeratorFast(result).ThreadSafeRunOnSchedule(runner);
-        }
+        }   
         
         IEnumerator SimpleEnumeratorLong(ValueObject result)
         {
@@ -472,7 +615,7 @@ namespace Test
         {
             yield return new WaitForSecondsEnumerator(1);
 
-            result.counter++;
+            Interlocked.Increment(ref result.counter);
         }
         
         IEnumerator SimpleEnumeratorFast(ValueObject result)
@@ -689,7 +832,7 @@ namespace Test
 
             public void Execute(ValueObject token)
             {
-                token.counter++;
+                Interlocked.Increment(ref token.counter);
 
                 isDone = true;
             }
