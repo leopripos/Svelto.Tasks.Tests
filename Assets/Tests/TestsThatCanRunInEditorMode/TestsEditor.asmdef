@@ -1,0 +1,15 @@
+{
+    "name": "EditorTests",
+    "references": [
+        "Svelto.Tasks",
+        "Svelto.Common"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false
+}

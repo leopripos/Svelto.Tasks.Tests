@@ -18,7 +18,6 @@ Temp
 /Assets/Plugins/Svelto/**/*.meta
 /.vs/Svelto.Tasks/v14/*.suo
 /.vs/Svelto.Tasks/v15
-/UnityPackageManager/manifest.json
 /.vs/Svelto.Tasks.Tests/v15
 /Assets/Plugins/Editor/JetBrains.meta
 /Assets/Plugins/Editor/JetBrains/Unity3DRider.cs
@@ -26,3 +25,12 @@ Temp
 /obj/
 /Svelto.Tasks.Tests.sln
 /Assets/Plugins/Editor/JetBrains/JetBrains.Rider.Unity.Editor.Plugin.Repacked.dll
+InitTestScene636563298193619295.unity
+InitTestScene636563298193619295.unity.meta
+InitTestScene636563299774681683.unity
+InitTestScene636563299774681683.unity.meta
+JetBrains.Rider.Unity.Editor.Plugin.Repacked.dll.meta
+Logs/Packages-Update.log
+test/
+New folder/
+TestCPP/
